@@ -1297,6 +1297,9 @@ class MY_Model extends CI_Model
                         }
                     }
                 }
+		 
+		// re-index array rows
+		$data = array_values($data);
             }
             else
             {
