@@ -183,7 +183,7 @@ class MY_Model extends CI_Model
         parent::__construct();
         $this->_set_connection();
         $this->_set_timestamps();
-        $this->_fetch_table();
+        // $this->_fetch_table();
         $this->pagination_delimiters = (isset($this->pagination_delimiters)) ? $this->pagination_delimiters : array('<span>','</span>');
         $this->pagination_arrows = (isset($this->pagination_arrows)) ? $this->pagination_arrows : array('&lt;','&gt;');
         /* These below are implementation examples for before_create and before_update triggers.
@@ -1138,7 +1138,13 @@ class MY_Model extends CI_Model
             {
                 $sub_results = $this->{$relation['foreign_model_name']};
                 $select = array();
-                $select[] = '`'.$foreign_table.'`.`'.$foreign_key.'`';
+                if (strpos(substr($foreign_table, 0, 4), $this->_database->dbprefix) !== false) 
+                {
+                    $select[] = '`'.$foreign_table.'`.`'.$foreign_key.'`';
+                } 
+                else {
+                    $select[] = '`'.$this->_database->dbprefix($foreign_table).'`.`'.$foreign_key.'`';
+                }
                 if(!empty($request['parameters']))
                 {
                     if(array_key_exists('fields',$request['parameters']))
@@ -1154,7 +1160,12 @@ class MY_Model extends CI_Model
                             $fields = explode(',', $request['parameters']['fields']);
                             foreach ($fields as $field)
                             {
-                                $select[] = (strpos($field,'.')===FALSE) ? '`' . $foreign_table . '`.`' . trim($field) . '`' : trim($field);
+                                if (strpos(substr($foreign_table, 0, 4), $this->_database->dbprefix) !== false) 
+                                {
+                                    $select[] = (strpos($field,'.')===FALSE) ? '`' . $foreign_table . '`.`' . trim($field) . '`' : trim($field);
+                                } else {
+                                    $select[] = (strpos($field,'.')===FALSE) ? '`' . $this->_database->dbprefix($foreign_table) . '`.`' . trim($field) . '`' : trim($field);
+                                }
                             }
                             $the_select = implode(',', $select);
                             $sub_results = (isset($the_select)) ? $sub_results->fields($the_select) : $sub_results;
@@ -1297,9 +1308,8 @@ class MY_Model extends CI_Model
                         }
                     }
                 }
-		 
-		// re-index array rows
-		$data = array_values($data);
+
+                $data = array_values($data);
             }
             else
             {
@@ -1419,8 +1429,8 @@ class MY_Model extends CI_Model
                                 $foreign_model = $model['model_dir'].$model['foreign_model'];
                                 $foreign_model_name = $model['foreign_model_name'];
 
-                                $this->load->model($foreign_model);
-                                $foreign_table = $this->{$foreign_model}->table;
+                                $this->load->model($foreign_model, $foreign_model_name);
+                                $foreign_table = $this->{$foreign_model_name}->table;
                                 $foreign_key = $relation[1];
                                 $local_key = $relation[2];
                                 if($option=='has_many_pivot')
@@ -1665,6 +1675,10 @@ class MY_Model extends CI_Model
 
     protected function _get_from_cache($cache_name = NULL)
     {
+        if (ENVIRONMENT === 'development') {
+            return FALSE;
+        }
+
         if(isset($cache_name) || (isset($this->_cache) && !empty($this->_cache)))
         {
             $this->load->driver('cache');
@@ -1676,6 +1690,10 @@ class MY_Model extends CI_Model
 
     protected function _write_to_cache($data, $cache_name = NULL)
     {
+        if (ENVIRONMENT === 'development') {
+            return FALSE;
+        }
+        
         if(isset($cache_name) || (isset($this->_cache) && !empty($this->_cache)))
         {
             $this->load->driver('cache');
@@ -1786,9 +1804,9 @@ class MY_Model extends CI_Model
         else
         {
             $this->load->database();
-            $this->_database =$this->db;
+            $this->_database = $this->db;
         }
-        // This may not be required
+
         return $this;
     }
 
@@ -1922,7 +1940,7 @@ class MY_Model extends CI_Model
     {
         if (!isset($this->table))
         {
-            $this->table = $this->_get_table_name(get_class($this));
+            $this->table = $this->_database->dbprefix($this->_get_table_name(get_class($this)));
             if (!$this->db->table_exists($this->table)) {
                show_error(
                    sprintf('While trying to figure out the table name, couldn\'t find an existing table named: <strong>"%s"</strong>.<br />You can set the table name in your model by defining the protected variable <strong>$table</strong>.',$this->table),
@@ -1930,10 +1948,8 @@ class MY_Model extends CI_Model
                    sprintf('Error trying to figure out table name for model "%s"',get_class($this))
                ); 
             }
-		else {
-			$this->_set_table_fillable_protected();
-		}
         }
+    	$this->_set_table_fillable_protected();
         return TRUE;
     }
     
@@ -2071,20 +2087,20 @@ class MY_Model extends CI_Model
         return $data;
     }
 
+    public function check_unique_field($field_name = 'name', $field_value, $value_neq = 0, $field_neq = 'id')
+    {
+        return (bool) $this->count_rows(array($field_name => $field_value, $field_neq.' !=' => $value_neq));
+    }
     
-    /*
     public function add_creator($data)
     {
     	$data['created_by'] = $_SESSION['user_id'];
     	return $data;
     }
-    */
 
-    /*
     public function add_updater($data)
     {
 	    $data['updated_by'] = $_SESSION['user_id'];
 	    return $data;
     }
-    */
 }
